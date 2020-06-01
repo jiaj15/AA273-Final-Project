@@ -7,14 +7,18 @@ clear all;
 close all;
 
 %% Get all the parameter
-N = 100;                                %% time step
+N = 100;                         %% measurement step
+h = 0.01;                        %% the input of dynamics model, smaller means smoother curve
+RATIO = 10;                      %% the measurement frequency 
+measure_t = RATIO * h;           %% every measure_t, get a new measurement
+
 D = [4,  1.5,   4;
      5,    2,   4];
 stateDim = size(D,1);
 desNum = size(D,2);
 
-Tq = 20;
-quadPoints = Tq-2:0.5:Tq+2;
+Tq = 15;
+quadPoints = Tq-2:0.2:Tq+2;
 q = size(quadPoints,2);
 
 trueDes = D(:,1);
@@ -63,7 +67,6 @@ U = zeros(N, desNum);
 
 %% Parameter Setting for the MRD model
 sig = diag([0.1, 0.1]);         % small sigma in MRD model
-h = 0.1;                        % time step
 Vn = [2, 1; 1, 5] / 10; 
 lamda = diag([1, 1]);
 r = stateDim;
@@ -72,9 +75,14 @@ r = stateDim;
 for t=1:1:N
     % responding time for a measurement
     %tn = time(t);
-    tn = t*h;
+    tn = (t-1)* measure_t;
     x = X(:,t);
-    [x_next, y, R_t, U_t, G_til, m_til] = MRD(x, trueDes, h, lamda, sig, Vn, r, Tq, tn);
+    for interval = 1:1:RATIO
+        [x_next, y, R_t, U_t, G_til, m_til] = MRD(x, trueDes, h, lamda, sig, Vn, r, Tq, tn);
+        tn = tn + h;
+        x = x_next;
+    end
+    
     if t<N
         X(:,t+1) = x_next;
     end
@@ -123,7 +131,7 @@ end
 
 %% Plot
 
-time = h * (1:1:N);
+time = measure_t * (1:1:N);
 
 figure;
 plot(time,U(:,1),'r','linewidth',2);
