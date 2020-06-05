@@ -1,4 +1,4 @@
-function St_predpd = predTraj(Z, Sigma, h_step, lamda, sig, Vn, r, quadPoints, tn, desNum, q, Pred_steps, u_id, D, stateDim)
+function [St_predpd, top_St] = predTraj(Z, Sigma, h_step, lamda, sig, Vn, r, quadPoints, tn, desNum, q, Pred_steps, u_id, D, stateDim)
 % Number of steps between the time step to predicted to the current time step tn
 h = Pred_steps * h_step;
 
@@ -21,10 +21,10 @@ for d = 1 : desNum
     end
 end
 % Formulate Gaussian mixture model and return
-St_predpd = genDist(desNum, q, stateDim, u_id, Z, Sigma);
+[St_predpd, top_St] = genDist(desNum, q, stateDim, u_id, Z, Sigma);
 end
     
-function predgmmdist = genDist(desNum, q, stateDim, u_id, Z, Sigma)
+function [predgmmdist, top_St] = genDist(desNum, q, stateDim, u_id, Z, Sigma)
 mu_pd = zeros(desNum * q, stateDim);
 sigma_pd = zeros(stateDim, stateDim, desNum * 2);
 
@@ -36,6 +36,8 @@ for d = 1 : desNum
         sigma_pd(:, :, (d - 1) * q + i) = sigma_pd_temp(1 : 2, 1 : 2);
     end
 end
+[~, I] = max(u_id);
 bool_mask = u_id ~= 0;
 predgmmdist = gmdistribution(mu_pd(bool_mask, :), sigma_pd(:, :, bool_mask), u_id(bool_mask));
+top_St = mu_pd(I, :);
 end

@@ -1,4 +1,4 @@
-function [gmmdist, u_id] = genStinfPD(L, p_ati, Z, Sigma, stateDim)
+function [gmmdist, u_id, top_St] = genStinfPD(L, p_ati, Z, Sigma, stateDim)
 desNum = size(L, 1);
 q = size(L, 2);
 u_id = zeros(desNum * q, 1);
@@ -20,6 +20,8 @@ for d = 1 : desNum
     end
 end
 % Generate Gaussian mixture model and return
+[~, I] = max(u_id);
 bool_mask = u_id ~= 0;
 gmmdist = gmdistribution(mu_pd(bool_mask, :), sigma_pd(:, :, bool_mask), u_id(bool_mask));
+top_St = mu_pd(I, :);
 end
