@@ -7,21 +7,25 @@ clear all;
 close all;
 
 %% Get all the parameter
-N = 100;                                %% time step
+N = 100;                         %% measurement step
+h = 0.01;                        %% the input of dynamics model, smaller means smoother curve
+RATIO = 10;                      %% the measurement frequency 
+measure_t = RATIO * h;           %% every measure_t, get a new measurement
+
 D = [4,  1.5,   4;
      5,    2,   4];
 stateDim = size(D,1);
 desNum = size(D,2);
 
-Tq = 20;
-quadPoints = Tq-2:0.5:Tq+2;
+Tq = 15;
+quadPoints = Tq-2:0.2:Tq+2;
 q = size(quadPoints,2);
 
 trueDes = D(:,1);
 x0 = [0;0];
 
 Pred_flag = true;
-Pred_steps = 30;
+Pred_steps = 50;
 
 %% intialize all the history container
 % a table which stores d rows and q columns concatenated state vectors at time tn
@@ -56,6 +60,8 @@ P_arrival_t =  zeros(N, q);
 % For part (e.1) -- state inference: 
 St_infpd = cell(N, 1);                % A cell array storing all states as Gaussian mixture distributions at N time steps
 St_predpd = cell(Pred_steps, 1);      % A cell array storing all states as Gaussian mixture distributions at all prediction steps
+mju_his = zeros(N, 1);
+mju_pred_his = zeros(Pred_steps, 1);
 
 prior = ones(1,desNum)/desNum;
 
@@ -63,18 +69,22 @@ U = zeros(N, desNum);
 
 %% Parameter Setting for the MRD model
 sig = diag([0.1, 0.1]);         % small sigma in MRD model
-h = 0.1;                        % time step
 Vn = [2, 1; 1, 5] / 10; 
-lamda = diag([1, 1]);
+lamda = diag([1, 1]) / 10;
 r = stateDim;
 
 %% main loop for destination inference
 for t=1:1:N
     % responding time for a measurement
     %tn = time(t);
-    tn = t*h;
+    tn = (t-1)* measure_t;
     x = X(:,t);
-    [x_next, y, R_t, U_t, G_til, m_til] = MRD(x, trueDes, h, lamda, sig, Vn, r, Tq, tn);
+    for interval = 1:1:RATIO
+        [x_next, y, R_t, U_t, G_til, m_til] = MRD(x, trueDes, h, lamda, sig, Vn, r, Tq, tn);
+        tn = tn + h;
+        x = x_next;
+    end
+    
     if t<N
         X(:,t+1) = x_next;
     end
@@ -109,7 +119,8 @@ for t=1:1:N
     
     L = L./sum(sum(L));
     U(t,:) = P .* prior/sum(P .* prior);
-    [St_infpd{t}, u_id] = genStinfPD(L, P_ati, Z, Sigma, stateDim);   % Store state inference Gausian Mixture distribution into cell
+    [St_infpd{t}, u_id, top_St] = genStinfPD(L, P_ati, Z, Sigma, stateDim);   % Store state inference Gausian Mixture distribution into cell
+    mju_his(t, 1 : 2) = top_St(1 : 2);
     P_arrival_t(t,:) = sum(L.*P_ati, 1)/sum(sum(L.*P_ati)); % store arrival time probabilities into table
     
 end
@@ -117,22 +128,23 @@ end
 % Store state prediction Gausian Mixture distribution into cell
 if Pred_flag
     for idx = 1 : Pred_steps
-        St_predpd{idx} = predTraj(Z, Sigma, h, lamda, sig, Vn, r, quadPoints, tn, desNum, q, idx, u_id, D, stateDim);
+        [St_predpd{idx}, top_predSt] = predTraj(Z, Sigma, h, lamda, sig, Vn, r, quadPoints, tn, desNum, q, idx, u_id, D, stateDim);
+        mju_pred_his(idx, 1 : 2) = top_predSt(1 : 2);
     end
 end
 
 %% Plot
 
-time = h * (1:1:N);
+time = measure_t * (1:1:N);
 
-figure;
+figure(1);
 plot(time,U(:,1),'r','linewidth',2);
 hold on;
 plot(time,U(:,2),'b','linewidth',2);
 hold on;
 plot(time,U(:,3),'y','linewidth',2);
 
-figure;
+figure(2);
 plot(X(1,:),X(2,:),'k','linewidth',2);
 hold on;
 scatter(D(1,1),D(2,1),  'r','filled');
@@ -140,3 +152,14 @@ hold on;
 scatter(D(1,2),D(2,2),  'b','filled');
 hold on;
 scatter(D(1,3),D(2,3),  'y','filled');
+
+figure(3);
+plot(mju_his(:, 1), mju_his(:, 2), '-b', 'linewidth', 1.5);
+hold on;
+plot(mju_pred_his(:, 1), mju_pred_his(:, 2), '-r', 'linewidth', 1.5);
+scatter(D(1,1),D(2,1),  'r','filled');
+scatter(D(1,2),D(2,2),  'b','filled');
+scatter(D(1,3),D(2,3),  'y','filled');
+legend("True Trajectory", "Predicted Trajectory", "Destination 1", "Destination 2", "Destination 3");
+axis equal;
+title("True Trajectory & Estimated Trajectory");
