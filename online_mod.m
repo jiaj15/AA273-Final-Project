@@ -9,23 +9,23 @@ close all;
 %% Get all the parameter
 N = 100;                         %% measurement step
 h = 0.01;                        %% the input of dynamics model, smaller means smoother curve
-RATIO = 10;                      %% the measurement frequency 
+RATIO = 5;                      %% the measurement frequency 
 measure_t = RATIO * h;           %% every measure_t, get a new measurement
 
-D = [4,  1.5,   4;
-     5,    2,   4];
+D = [4,  1,   4;
+     1,    4,   4];
 stateDim = size(D,1);
 desNum = size(D,2);
 
-Tq = 15;
+Tq =15;
 quadPoints = Tq-2:0.2:Tq+2;
 q = size(quadPoints,2);
 
-trueDes = D(:,1);
+trueDes = D(:,3);
 x0 = [0;0];
 
 Pred_flag = true;
-Pred_steps = 50;
+Pred_steps = 500;
 
 %% intialize all the history container
 % a table which stores d rows and q columns concatenated state vectors at time tn
@@ -69,8 +69,8 @@ U = zeros(N, desNum);
 
 %% Parameter Setting for the MRD model
 sig = diag([0.1, 0.1]);         % small sigma in MRD model
-Vn = [2, 1; 1, 5] / 10; 
-lamda = diag([1, 1]) / 10;
+Vn = [2, 1; 1, 5] / 5; 
+lamda = diag([1, 1]) / 5;
 r = stateDim;
 
 %% main loop for destination inference
@@ -83,6 +83,10 @@ for t=1:1:N
         [x_next, y, R_t, U_t, G_til, m_til] = MRD(x, trueDes, h, lamda, sig, Vn, r, Tq, tn);
         tn = tn + h;
         x = x_next;
+        if norm(x_next-trueDes, 'fro') < 0.5
+            t_goal = tn + interval*h;
+        end
+        
     end
     
     if t<N
@@ -104,7 +108,7 @@ for t=1:1:N
             %y = Y(:,t);
 
             % use MRD model to predict the next position
-            [~, ~, R_t, U_t, G_til, m_til] = MRD(z(1:stateDim,1), pd, h, lamda, sig, Vn, r, Ti, tn);
+            [~, ~, R_t, U_t, G_til, m_til] = MRD(z(1:stateDim,1), pd, measure_t, lamda, sig, Vn, r, Ti, tn);
 
             % use kF to update
             [l_n, Z_next, Sigma_next] = KF(y, z, sigma, R_t, U_t, G_til, m_til, Vn, r, tn);
